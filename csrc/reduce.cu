@@ -22,7 +22,9 @@ void reduce_add(torch::Tensor& out, torch::Tensor& input,
   const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
   int block_dim = std::min(hidden_size, 1024);
-  torch::Tensor intermediate = torch::empty({block_dim}, input.options());
+  int intermediate_size = pow(2, ceil(log2(block_dim)));
+  torch::Tensor intermediate =
+      torch::zeros({batchsize, intermediate_size}, input.options());
 
   BUBBLE_DISPATCH_FLOATING_TYPES(out.scalar_type(), "reduce_add", [&] {
     switch (str2version(version)) {

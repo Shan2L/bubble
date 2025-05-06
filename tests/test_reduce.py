@@ -4,8 +4,8 @@ from bubble.ops import reduce_add
 from utils import get_default_rtol, get_default_atol
 
 
-BATCHSIZES = [2, 33]
-HIDDEN_SIZES = [255, 277, 333, 1024]
+BATCHSIZES = [1, 33, 512]
+HIDDEN_SIZES = [100, 500, 2048]
 DTYPES = [torch.float, torch.half, torch.bfloat16]
 VERSIONS = ["alpha", "beta"]
 SEEDS = [1111]
@@ -29,13 +29,9 @@ def test_reduce_add(
     torch.manual_seed(seed)
     torch.set_default_device(device)
     input = torch.randn(batchsize, hidden_size, dtype=dtype)
+    input2 = input.clone()
+    print(input)
     output = torch.empty(batchsize, dtype=dtype)
-    golden = torch.sum(input, dim=-1)
+    golden = torch.sum(input2, dim=-1)
     reduce_add(output, input, version)
-    print(f"golden: {golden}")
-    print(f"result: {output}")
-
-    print(golden.shape)
-    print(output.shape)
-
-    torch.testing.assert_close(golden, output, rtol=get_default_rtol(input), atol=get_default_atol(input))
+    torch.testing.assert_close(golden.cpu(), output.cpu(), rtol=1e-5, atol=1e-5)

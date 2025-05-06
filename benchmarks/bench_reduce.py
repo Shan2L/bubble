@@ -17,9 +17,9 @@ torch.set_default_device("cuda")
 input = torch.randn(batch_size, hidden_dim)
 output = torch.randn(batch_size)
 
-warm_up(reduce_add, (output, input, "alpha"), 30)
+warm_up(torch.add, (input, input), 30)
 
-time2 = reduce_add(output, input, "BETA")
+time2 = reduce_add(output, input, "beta")
 print(time2)
 
 time1 = reduce_add(output, input, "alpha")

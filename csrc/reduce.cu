@@ -39,14 +39,12 @@ double reduce_add(torch::Tensor& out, torch::Tensor& input,
             out.data_ptr<scalar_t>(), input.data_ptr<scalar_t>(),
             intermediate.data_ptr<float>(), batchsize, hidden_size, in_stride,
             stream);
-        break;
-      }
+      } break;
       case 1: {
         bubble::beta::reduce<scalar_t>(out.data_ptr<scalar_t>(),
                                        input.data_ptr<scalar_t>(), batchsize,
                                        hidden_size, in_stride, stream);
-        break;
-      }
+      } break;
       default:
         std::cerr << "The version has not been supported yet." << std::endl;
         std::exit(-1);

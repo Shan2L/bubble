@@ -7,10 +7,6 @@
 #include "utils.cuh"
 
 namespace bubble {
-template <typename scalar_t>
-__device__ scalar_t operator_add(scalar_t a, scalar_t b) {
-  return (float)a + (float)b;
-}
 
 namespace alpha {
 template <typename scalar_t>
@@ -22,7 +18,7 @@ __global__ void reduce_kernel(scalar_t* __restrict__ out,
   int batch_id = blockIdx.x;
   for (int idx = threadIdx.x; idx < hidden_size; idx += blockDim.x) {
     int offset_in = batch_id * in_stride + idx;
-    sum = bubble::operator_add<scalar_t>(in[offset_in], sum);
+    sum += (float)in[offset_in];
   }
   int intermediate_size = pow(2, ceil(log2(blockDim.x)));
 
@@ -30,11 +26,8 @@ __global__ void reduce_kernel(scalar_t* __restrict__ out,
   for (unsigned int stride = intermediate_size / 2; stride > 0; stride >>= 1) {
     __syncthreads();
     if (threadIdx.x < stride) {
-      intermediate[batch_id * intermediate_size + threadIdx.x] =
-          bubble::operator_add<scalar_t>(
-              intermediate[batch_id * intermediate_size + threadIdx.x],
-              intermediate[batch_id * intermediate_size + threadIdx.x +
-                           stride]);
+      intermediate[batch_id * intermediate_size + threadIdx.x] +=
+          intermediate[batch_id * intermediate_size + threadIdx.x + stride];
     }
   }
 
@@ -77,15 +70,14 @@ __global__ void reduce_kernel(scalar_t* __restrict__ out,
   float sum = 0;
   for (int i = threadIdx.x; i < hidden_size; i += blockDim.x) {
     int64_t offset = blockIdx.x * in_stride + i;
-    sum = bubble::operator_add<scalar_t>(sum, input[offset]);
+    sum += (float)input[offset];
   }
   shm[threadIdx.x] = sum;
 
   for (unsigned int stride = shm_size / 2; stride > 0; stride >>= 1) {
     __syncthreads();
     if (threadIdx.x < stride) {
-      shm[threadIdx.x] = bubble::operator_add<scalar_t>(
-          shm[threadIdx.x], shm[threadIdx.x + stride]);
+      shm[threadIdx.x] += shm[threadIdx.x + stride];
     }
   }
   __syncthreads();

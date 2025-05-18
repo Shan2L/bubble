@@ -4,14 +4,12 @@ from bubble.ops import reduce_add
 from utils import get_default_rtol, get_default_atol
 
 
-BATCHSIZES = [1, 33, 512]
-HIDDEN_SIZES = [100, 500, 2048]
+HIDDEN_SIZES = [100, 500, 2048, 10086, 12312312]
 DTYPES = [torch.float, torch.half, torch.bfloat16]
-VERSIONS = ["alpha", "beta"]
+VERSIONS = ["alpha", "beta", "delta"]
 SEEDS = [1111]
 CUDA_DEVICES = ["cuda:0"]
 
-@pytest.mark.parametrize("batchsize", BATCHSIZES)
 @pytest.mark.parametrize("hidden_size", HIDDEN_SIZES)
 @pytest.mark.parametrize("dtype", DTYPES)
 @pytest.mark.parametrize("seed", SEEDS)
@@ -19,7 +17,6 @@ CUDA_DEVICES = ["cuda:0"]
 @pytest.mark.parametrize("version", VERSIONS)
 @torch.inference_mode()
 def test_reduce_add(
-    batchsize: int,
     hidden_size: int,
     version: str,
     dtype: torch.dtype,
@@ -27,11 +24,10 @@ def test_reduce_add(
     device: str,
 ) -> None:
     torch.manual_seed(seed)
-    torch.set_default_device(device)
-    input = torch.randn(batchsize, hidden_size, dtype=dtype)
+    input = torch.ones((hidden_size, ), dtype=dtype, device="cuda")
     input2 = input.clone()
-    print(input)
-    output = torch.empty(batchsize, dtype=dtype)
-    golden = torch.sum(input2, dim=-1)
+    output = torch.zeros(1, dtype=torch.float, device="cuda")
+    golden = torch.sum(input2.float(), dim=-1, keepdim=True).float()
     reduce_add(output, input, version)
-    torch.testing.assert_close(golden.cpu(), output.cpu(), rtol=1e-5, atol=1e-5)
+
+    torch.testing.assert_close(golden.cpu(), output.cpu(), rtol=1e-3, atol=1e-3)

@@ -4,21 +4,18 @@
 #include <cuda_runtime.h>
 #include <iostream>
 
-#include <bubble/reduce.cuh>
+#include "bubble/reduce.cuh"
+#include "bubble/utils.cuh"
 #include "dispatch_utils.h"
 #include "kernel_version_utils.h"
 #include "timer.cuh"
 
 double reduce_add(torch::Tensor& out, torch::Tensor& input,
                   const std::string& version) {
-  int batchsize = input.size(0);
-  int hidden_size = input.size(1);
-  int in_stride = input.stride(0);
+  int hidden_size = input.size(0);
 
-  TORCH_INTERNAL_ASSERT(batchsize == out.size(0),
-                        "The dimension of out and in Tensor are not same.");
   TORCH_INTERNAL_ASSERT(
-      version == "alpha" || version == "beta" || version == "gamma",
+      version == "alpha" || version == "beta" || version == "delta",
       "The version is incorrect.");
 
   const at::cuda::OptionalCUDAGuard device_guard(input.device());
@@ -26,25 +23,31 @@ double reduce_add(torch::Tensor& out, torch::Tensor& input,
 
   CUDAKernelTimer& timer = CUDAKernelTimer::getInstance();
   timer.begin();
-  BUBBLE_DISPATCH_FLOATING_TYPES(out.scalar_type(), "reduce_add", [&] {
+  BUBBLE_DISPATCH_FLOATING_TYPES(input.scalar_type(), "reduce_add", [&] {
     int version_id = str2version(version);
     switch (version_id) {
       case 0: {
         int block_dim = std::min(hidden_size, 1024);
+        int num_blocks = ceil_div(hidden_size, block_dim);
         int intermediate_size = pow(2, ceil(log2(block_dim)));
         torch::Tensor intermediate =
-            torch::zeros({batchsize, intermediate_size},
+            torch::zeros({num_blocks, intermediate_size},
                          input.options().dtype(torch::kFloat32));
         bubble::alpha::reduce<scalar_t>(
-            out.data_ptr<scalar_t>(), input.data_ptr<scalar_t>(),
-            intermediate.data_ptr<float>(), batchsize, hidden_size, in_stride,
-            stream);
+            out.data_ptr<float>(), input.data_ptr<scalar_t>(),
+            intermediate.data_ptr<float>(), hidden_size, stream);
       } break;
       case 1: {
-        bubble::beta::reduce<scalar_t>(out.data_ptr<scalar_t>(),
-                                       input.data_ptr<scalar_t>(), batchsize,
-                                       hidden_size, in_stride, stream);
+        bubble::beta::reduce<scalar_t>(out.data_ptr<float>(),
+                                       input.data_ptr<scalar_t>(),
+                                       hidden_size, stream);
       } break;
+      case 2: {
+        bubble::delta::reduce<scalar_t>(out.data_ptr<float>(),
+                                        input.data_ptr<scalar_t>(),
+                                        hidden_size, stream);
+      }
+        break;
       default:
         std::cerr << "The version has not been supported yet." << std::endl;
         std::exit(-1);
